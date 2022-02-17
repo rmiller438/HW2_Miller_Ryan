@@ -19,32 +19,26 @@ installed via the R terminal.
 
 The data is of the first observed gravitational wave which took place in September
 2015 and was produced by the merging of two black holes.
-Data is shown from each of the two detectors `L1` (Livingston) and `H1` (Hanford).
+Data is shown from each of the two detectors `L1` (Livingston) and `H1` (Hanford). More
+information can be found
+[here](https://www.gw-openscience.org/events/GW150914/#:~:text=The%20event%20occurred%20at%20GPS,Hanford%20and%20LIGO%20Livingston%20observatories.).
+This event is known as `GW150914`, which you will see in the plot titles and axes.
 
-You will notice in the plots that the signal is indistinguishable from the noise. The data
-needs to be filtered and whitened in order for the signal to become clear. I plan to
-complete this portion of the analysis for inclusion in the future shiny project.
+You will notice in the plots that the signal is currently indistinguishable from the
+noise. The data needs to be processed in order for the signal to become clear.
+I plan to complete this portion of the analysis for inclusion in the future shiny project.
 
-https://arxiv.org/pdf/1908.11170.pdf
-A guide to LIGO-Virgo detector noise and extraction of transient gravitational-wave
-signals
-
-https://www.gw-openscience.org/GW150914data/GW150914_tutorial.html
-
-```{r, echo = FALSE}
+```{r, echo = FALSE, message = FALSE}
 rm( list = ls() )
 
 ## Load required libraries
 library(   hdf5r   )
+library(  plotly   )
 library( tidyverse )
 library(  viridis  )
-
-## Set chunk and figure default options
-knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, results = 'hide',
-fig.show = 'hide')
 ```
 
-```{r}
+```{r, echo = FALSE, results = 'hide'}
 
 #########################################################################################
 ## Get the data
@@ -79,8 +73,17 @@ if( file.exists( h1.file.loc ) )
     download.file( h1.file.loc, h1.temp.file )
     h1.temp.5    <- hdf5r::H5File$new( h1.temp.file, mode = 'r+' )
 }
+
+## Get numeric relativity template (will be used in future assignments)
+if( FALSE )
+{
+    temp.file <- tempfile( fileext = '.txt' )
+    download.file( 'https://losc.ligo.org/s/events/GW150914/GW150914_4_NR_waveform.txt',
+                  temp.file )
+    nrel <- read_table( temp.file, col_names = FALSE )
+}
 ```
-```{r}
+```{r, echo = FALSE, resutls = 'hide'}
 
 ## Process some L1 data
 l1.strain   <- l1.temp.5[['strain/Strain']]
@@ -94,7 +97,7 @@ h1.utcstart <- h1.temp.5[['meta/UTCstart']]
 h1.gpsstart <- h1.temp.5[['meta/GPSstart']]
 h1.duration <- h1.temp.5[['meta/Duration']]
 ```
-```{r}
+```{r, echo = FALSE, results = 'hide'}
 
 ## Learn data structure and some other important features
 h5attr_names( l1.strain )
@@ -114,8 +117,6 @@ h5attr( l1.strain, "Yunits" )
 # [1] ""
 h5attr( l1.strain, "Ylabel" )
 # [1] "Strain"
-
-
 
 ## When do measurements start?
 l1.utcstart[]
@@ -143,23 +144,33 @@ off   <- 5
 sIdx  <- event - off / dt
 eIdx  <- event + off / dt
 
-## Data for plotting
+## Data for plotting (RAW)
 y.l1 <- l1.strain[ sIdx:eIdx ]
 y.h1 <- h1.strain[ sIdx:eIdx ]
 x    <- time[ event ] - time[ sIdx:eIdx ]
-pd   <- data.frame( L1 = y.l1, H1 = y.h1, x = x )
 ```
 
-```{r}
-## Generate plot
-h_ <- ggplot( data = pd, aes( x = x ) ) +
-    geom_line( aes( y = L1 ) )
-```
-```{r, fig.show = 'asis', fig.align = 'center'}
-h_
-```
+```{r, echo = FALSE, results = 'hide'}
 
-```{r}
+## Set up the plotly functions
+pd.raw <- data.frame( L1 = y.l1, H1 = y.h1, Time = x )
+h.raw <- plot_ly( pd.raw, x = ~Time ) %>%
+    add_lines( y = ~L1, name = 'L1' ) %>%
+    add_lines( y = ~H1, name = 'H1' ) %>% rangeslider() %>% layout( hovermode = 'x' ) %>%
+    layout( title = 'LIGO Strain Near GW150914',
+           xaxis = list( title = 'Time (s) since GW150914' ),
+           yaxis = list( title = 'Strain' ) )
+```
+\
+\
+\
+```{r, echo = FALSE, fig.align = 'center'}
+h.raw
+```
+\
+\
+\
+```{r, echo = FALSE}
 
 #########################################################################################
 ## Close all HDF5 stuff
@@ -170,7 +181,7 @@ h1.temp.5$close_all()
 
 ## Code
 
-```{r getlabs, results = 'hide'}
+```{r getlabs, results = 'hide', include = FALSE}
 ## Get all the labels
 appLabs <- knitr::all_labels()
 appLabs <- setdiff( appLabs, c('getlabs', appLabs[grep("^hide", appLabs)]) )
@@ -178,3 +189,10 @@ appLabs <- setdiff( appLabs, c('getlabs', appLabs[grep("^hide", appLabs)]) )
 
 ```{r show-code, ref.label = appLabs, echo = TRUE, eval = FALSE}
 ```
+
+## References
+A guide to LIGO-Virgo detector noise and extraction of transient gravitational-wave
+signals; https://arxiv.org/pdf/1908.11170.pdf
+
+Signal Processing with GW150914 Open Data;
+https://www.gw-openscience.org/GW150914data/GW150914_tutorial.html
