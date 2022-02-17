@@ -8,3 +8,173 @@ knit: (function(input_file, encoding) {
  encoding=encoding,
  output_file=file.path(dirname(input_file), out_dir, 'index.html'))})
 ---
+The data for this assignment was retrieved from the [Gravitational Wave Open Science
+Center](https://www.gw-openscience.org/). I chose this data because it is in
+HDF5 format, which I've never used in R before so I had to learn something new (in
+addition to the interactive plots!). The code will automatically download the data from
+the website, unless a local file path is provided to it.
+
+Working with the data does require the use of the `hdf5r` [package](https://cran.r-project.org/web/packages/hdf5r/index.html), which can be
+installed via the R terminal.
+
+The data is of the first observed gravitational wave which took place in September
+2015 and was produced by the merging of two black holes.
+Data is shown from each of the two detectors `L1` (Livingston) and `H1` (Hanford).
+
+You will notice in the plots that the signal is indistinguishable from the noise. The data
+needs to be filtered and whitened in order for the signal to become clear. I plan to
+complete this portion of the analysis for inclusion in the future shiny project.
+
+https://arxiv.org/pdf/1908.11170.pdf
+A guide to LIGO-Virgo detector noise and extraction of transient gravitational-wave
+signals
+
+https://www.gw-openscience.org/GW150914data/GW150914_tutorial.html
+
+```{r, echo = FALSE}
+rm( list = ls() )
+
+## Load required libraries
+library(   hdf5r   )
+library( tidyverse )
+library(  viridis  )
+
+## Set chunk and figure default options
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning = FALSE, results = 'hide',
+fig.show = 'hide')
+```
+
+```{r}
+
+#########################################################################################
+## Get the data
+#########################################################################################
+## Caution: Downloading data takes may take some time. Recommend that you only do this
+## once. Repeated downloading can also create a lot of temporary files
+#########################################################################################
+## Get strain data from L1 detector
+l1.file.loc <- '~/Downloads/L-L1_LOSC_16_V1-1126256640-4096.hdf5'
+if( file.exists( l1.file.loc ) )
+{
+    print( 'Skipping L1 file download.' )
+    l1.temp.5    <- hdf5r::H5File$new( l1.file.loc, mode = 'r+' )
+} else
+{
+    l1.file.loc  <- 'https://www.gw-openscience.org/archive/data/O1_16KHZ/1126170624/L-L1_LOSC_16_V1-1126256640-4096.hdf5'
+    l1.temp.file <- tempfile( fileext = '.hdf5' )
+    download.file( l1.file.loc, l1.temp.file )
+    l1.temp.5    <- hdf5r::H5File$new( l1.temp.file, mode = 'r+' )
+}
+
+## Get strain data from H1 detector
+h1.file.loc  <- '~/Downloads/H-H1_LOSC_16_V1-1126256640-4096.hdf5'
+if( file.exists( h1.file.loc ) )
+{
+    print( 'Skipping H1 file download.' )
+    h1.temp.5    <- hdf5r::H5File$new( h1.file.loc, mode = 'r+' )
+} else
+{
+    h1.file.loc  <- 'https://www.gw-openscience.org/archive/data/O1_16KHZ/1126170624/H-H1_LOSC_16_V1-1126256640-4096.hdf5'
+    h1.temp.file <- tempfile( fileext = '.hdf5' )
+    download.file( h1.file.loc, h1.temp.file )
+    h1.temp.5    <- hdf5r::H5File$new( h1.temp.file, mode = 'r+' )
+}
+```
+```{r}
+
+## Process some L1 data
+l1.strain   <- l1.temp.5[['strain/Strain']]
+l1.utcstart <- l1.temp.5[['meta/UTCstart']]
+l1.gpsstart <- l1.temp.5[['meta/GPSstart']]
+l1.duration <- l1.temp.5[['meta/Duration']]
+
+## Process some H1 data
+h1.strain   <- h1.temp.5[['strain/Strain']]
+h1.utcstart <- h1.temp.5[['meta/UTCstart']]
+h1.gpsstart <- h1.temp.5[['meta/GPSstart']]
+h1.duration <- h1.temp.5[['meta/Duration']]
+```
+```{r}
+
+## Learn data structure and some other important features
+h5attr_names( l1.strain )
+# [1] "Npoints"  "Xunits"   "Xlabel"   "Xspacing" "Xstart"   "Yunits"   "Ylabel"
+
+h5attr( l1.strain, "Npoints" )
+# [1] 67108864
+h5attr( l1.strain, "Xunits" )
+# [1] "second"
+h5attr( l1.strain, "Xlabel" )
+# [1] "GPS time"
+h5attr( l1.strain, "Xspacing" )
+# [1] 6.103516e-05
+h5attr( l1.strain, "Xstart" )
+# [1] 1126256640
+h5attr( l1.strain, "Yunits" )
+# [1] ""
+h5attr( l1.strain, "Ylabel" )
+# [1] "Strain"
+
+
+
+## When do measurements start?
+l1.utcstart[]
+# [1] "2015-09-14T09:03:43"
+l1.gpsstart[]
+# [1] 1126256640
+l1.duration[]
+# [1] 4096
+
+h1.utcstart[]
+# [1] "2015-09-14T09:03:43"
+h1.gpsstart[]
+# [1] 1126256640
+h1.duration[]
+# [1] 4096
+## Same time stamp on data, only need one from here on out
+
+dt   <- h5attr( l1.strain, 'Xspacing' )
+time <- seq( from = l1.gpsstart[], to = l1.gpsstart[] + l1.duration[], by = dt )
+
+## Detection occurred at T09:50:45 and lasted "over 0.2 seconds",
+# So need to move 47 minutes and 2 seconds
+event <- ( 47 * 60 + 2) / dt
+off   <- 5
+sIdx  <- event - off / dt
+eIdx  <- event + off / dt
+
+## Data for plotting
+y.l1 <- l1.strain[ sIdx:eIdx ]
+y.h1 <- h1.strain[ sIdx:eIdx ]
+x    <- time[ event ] - time[ sIdx:eIdx ]
+pd   <- data.frame( L1 = y.l1, H1 = y.h1, x = x )
+```
+
+```{r}
+## Generate plot
+h_ <- ggplot( data = pd, aes( x = x ) ) +
+    geom_line( aes( y = L1 ) )
+```
+```{r, fig.show = 'asis', fig.align = 'center'}
+h_
+```
+
+```{r}
+
+#########################################################################################
+## Close all HDF5 stuff
+#########################################################################################
+l1.temp.5$close_all()
+h1.temp.5$close_all()
+```
+
+## Code
+
+```{r getlabs, results = 'hide'}
+## Get all the labels
+appLabs <- knitr::all_labels()
+appLabs <- setdiff( appLabs, c('getlabs', appLabs[grep("^hide", appLabs)]) )
+```
+
+```{r show-code, ref.label = appLabs, echo = TRUE, eval = FALSE}
+```
