@@ -25,10 +25,8 @@ information can be found
 This event is known as `GW150914`, which you will see in the plot titles and axes.
 
 You will notice in the plots that the signal is currently indistinguishable from the
-noise. The data needs to be processed in order for the signal to become clear, and it
-turned out that I will need more time to implement this. My plan is to finish the signal
-processing and include it in the shiny project. In that way the hope is that it will be
-easy to compare the raw signal from the final product in an interactive way.
+noise. The data needs to be processed in order for the signal to become clear.
+I plan to complete this portion of the analysis for inclusion in the future shiny project.
 
 ```{r, echo = FALSE, message = FALSE}
 rm( list = ls() )
@@ -159,7 +157,7 @@ pd.raw <- data.frame( L1 = y.l1, H1 = y.h1, Time = x )
 h.raw <- plot_ly( pd.raw, x = ~Time ) %>%
     add_lines( y = ~L1, name = 'L1' ) %>%
     add_lines( y = ~H1, name = 'H1' ) %>% rangeslider() %>% layout( hovermode = 'x' ) %>%
-    layout( title = 'Raw LIGO Strain Near GW150914',
+    layout( title = 'LIGO Strain Near GW150914',
            xaxis = list( title = 'Time (s) since GW150914' ),
            yaxis = list( title = 'Strain' ) )
 ```
